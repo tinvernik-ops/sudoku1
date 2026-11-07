@@ -1,0 +1,812 @@
+<title>Sudoku listići</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c8102e">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: ploča s karticama zadataka ispod ljepljive trake s vremenom; lijevo bodovna tablica kao na naslovnici listića. */
+:root {
+  --bg: #e9ecf1; --surface: #ffffff; --fg: #151a22; --muted: #596273; --line: #c8ceda;
+  --accent: #c8102e; --accent-fg: #ffffff; --ok: #14733f; --bad: #b3261e; --soft: #f2f4f8;
+  --display: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif; --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* papir zadataka ostaje isti u obje teme */
+  --paper: #ffffff; --ink: #151a22; --grid: #8d94a3; --shade: #d9dce3; --entry: #1d44c9; --okink: #14733f;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1319; --surface: #171c24; --fg: #e8ebf1; --muted: #9ba5b6; --line: #2b3340; --accent: #ff4b5f; --accent-fg: #1a0509; --ok: #4ccb8a; --bad: #ff8a80; --soft: #1d232d; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0f1319; --surface: #171c24; --fg: #e8ebf1; --muted: #9ba5b6; --line: #2b3340; --accent: #ff4b5f; --accent-fg: #1a0509; --ok: #4ccb8a; --bad: #ff8a80; --soft: #1d232d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+bodybody::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 6vw, 44px); letter-spacing: .01em; line-height: 1; margin: 0; text-transform: uppercase; text-wrap: balance; }
+.head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-start; justify-content: space-between; }
+.insthelp { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0; }
+.sub0 { color: var(--muted); margin: 6px 0 0; }
+.tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.tab { font: inherit; text-align: left; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; cursor: pointer; }
+.tab .tn { font-family: var(--display); font-weight: 600; font-size: 20px; line-height: 1.1; text-transform: uppercase; letter-spacing: .02em; }
+.tab .tm { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.tab.on { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+.tab:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.clockbox { display: flex; flex-direction: column; min-width: 0; }
+.clab2 { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.clock { font-family: var(--display); font-weight: 600; font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+.clock.low { color: var(--accent); }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: inherit; font-weight: 600; background: var(--soft); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 16px; cursor: pointer; min-height: 44px; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chk { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
+.status { color: var(--muted); margin: 0; min-height: 1.4em; }
+.score { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.scroll { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tbl th { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 14px; color: var(--muted); text-align: left; }
+.tbl th, .tbl td { border: 1px solid var(--line); padding: 7px 10px; }
+.tbl .c { text-align: center; white-space: nowrap; }
+.tbl .got { font-weight: 600; min-width: 90px; }
+.tbl .tot td { font-family: var(--display); font-size: 20px; font-weight: 600; text-transform: uppercase; }
+.sub { color: var(--muted); font-weight: 400; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.ph { background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 36px 16px; text-align: center; color: var(--muted); }
+.ph p { margin: 4px 0; } .phbig { font-family: var(--display); font-size: 32px; font-weight: 600; color: var(--fg); text-transform: uppercase; }
+.spin { display: inline-block; width: 22px; height: 22px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp 0.8s linear infinite; }
+.spin.big { width: 36px; height: 36px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
+.grp { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.grp h2 { font-family: var(--display); font-weight: 600; font-size: 26px; text-transform: uppercase; letter-spacing: .02em; margin: 0; border-bottom: 2px solid var(--fg); padding-bottom: 2px; }
+.gn { color: var(--accent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px; }
+.card { background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px 8px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.card.good { border-color: #14733f; box-shadow: inset 0 0 0 1px #14733f; } .card.bad { border-color: #b3261e; box-shadow: inset 0 0 0 1px #b3261e; }
+.card header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lab { font-family: var(--display); font-weight: 600; font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
+.pill { font-size: 13px; font-weight: 600; border: 1px solid #aeb5c2; border-radius: 99px; padding: 1px 10px; white-space: nowrap; color: #333b49; }
+.pill.ok { background: #e3f4ea; border-color: #14733f; color: #0e5a30; } .pill.no { background: #fbe9e7; border-color: #b3261e; color: #8f1d17; }
+.rule { font-size: 12.5px; color: #3c4554; margin: 0; }
+.meta { font-size: 12px; color: #6b7384; margin: 0; text-align: right; }
+.pz { display: flex; justify-content: center; }
+.puz { width: 100%; height: auto; display: block; touch-action: manipulation; user-select: none; -webkit-user-select: none; font-family: var(--body); }
+.puz .paper { fill: var(--paper); } .puz .shade { fill: var(--shade); } .puz .dash { fill: none; stroke: #555d6c; stroke-width: 1.2; stroke-dasharray: 3 2.5; }
+.puz .thin { stroke: var(--grid); stroke-width: 1; } .puz .thick { stroke: var(--ink); stroke-width: 3; stroke-linecap: square; } .puz .outer { fill: none; stroke: var(--ink); stroke-width: 3.2; }
+.puz .hl { fill: rgba(29, 68, 201, .22); } .puz .hit { fill: transparent; cursor: pointer; }
+.puz text { text-anchor: middle; dominant-baseline: central; }
+.puz .dg { font-size: 25px; font-weight: 700; fill: var(--ink); } .puz .du { font-size: 25px; font-weight: 500; fill: var(--entry); }
+.puz .du.wrong { fill: #b3261e; text-decoration: line-through; } .puz .du.sol { fill: var(--okink); font-weight: 600; }
+.puz .niz { stroke: #8d94a3; stroke-width: 3; stroke-linecap: round; opacity: .9; }
+.puz .cage line { stroke: #333b49; stroke-width: 1.2; stroke-dasharray: 2.5 2.5; }
+.puz .clab { font-size: 12px; font-weight: 600; fill: var(--ink); text-anchor: start; }
+.puz .sumbox { fill: #fff; stroke: #333b49; stroke-width: 1; } .puz .sumtxt { font-size: 11.5px; font-weight: 600; fill: var(--ink); }
+.puz .shape { fill: none; stroke: #333b49; stroke-width: 1.4; }
+.puz .bar { fill: #3a4252; } .puz .vxbox { fill: #fff; opacity: .95; } .puz .vxtxt { font-size: 14px; font-weight: 700; fill: var(--ink); }
+.puz .sign { fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+body.fopen { overflow: hidden; }
+.card.tap { cursor: pointer; } .card.solvedc { border-color: #14733f; }
+.focus { position: fixed; inset: 0; z-index: 40; background: var(--bg); padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.focus[hidden] { display: none; }
+.fin { height: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.ftop, .fnav { display: flex; align-items: center; gap: 8px; }
+.ftitlebox { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.ftitlebox b { font-family: var(--display); font-size: 22px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftitlebox span { color: var(--muted); font-size: 13px; }
+.fclock { font-family: var(--display); font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; } .fclock.low { color: var(--accent); }
+.fbtn { font: inherit; font-weight: 600; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; min-height: 40px; cursor: pointer; }
+.fprog { flex: 1; text-align: center; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.fsub { min-height: 40px; padding: 8px 12px; }
+.frule { margin: 0; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.fpz { position: relative; flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.fpz .puz { width: 100%; height: 100%; border-radius: 4px; }
+.fflash { position: absolute; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #14733f; color: #fff; font-family: var(--display); font-size: 34px; font-weight: 600; padding: 10px 24px; border-radius: 8px; text-transform: uppercase; }
+.fflash[hidden] { display: none; }
+.tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tools button { font: 500 13px var(--body); background: none; color: var(--fg); border: 1px solid transparent; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
+.tools .ti { font-size: 22px; line-height: 1.2; } .tools button.on { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+.ps { font-weight: 700; font-size: 11px; }
+.pad { display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; }
+.pad button { font: inherit; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; cursor: pointer; min-width: 0; }
+.pad .pn { font-family: var(--display); font-size: 32px; font-weight: 600; line-height: 1; } .pad .pc { font-size: 12px; color: var(--muted); }
+.pad button.done { opacity: .35; } .pad button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); } .pad button.on .pc { color: var(--accent-fg); }
+.puz .peer { fill: rgba(70, 80, 110, .11); } .puz .same { fill: rgba(29, 68, 201, .27); } .puz .nt { font-size: 10.5px; fill: #4b5565; font-weight: 500; }
+@media (max-width: 520px) { .clock { font-size: 38px; } .btn { padding: 10px 12px; } .tbl th, .tbl td { padding: 6px; } }
+</style>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Sudoku listići</h1>
+      <p class="sub0">Juniori · slučajno generirani zadaci s jedinstvenim rješenjem, vremenom i bodovanjem.</p>
+    </div>
+    <button type="button" id="inst" class="btn" hidden>Instaliraj aplikaciju</button>
+  </div>
+  <p id="insthelp" class="insthelp" hidden></p>
+  <nav id="tabs" class="tabs" aria-label="Odabir seta"></nav>
+  <div id="bar" class="bar"></div>
+  <p id="status" class="status" aria-live="polite"></p>
+  <div id="score" class="score"></div>
+  <main id="sheet"></main>
+</div>
+<div id="focus" class="focus" hidden>
+  <div class="fin">
+    <div class="ftop">
+      <button type="button" id="fback" class="fbtn">‹ Pregled</button>
+      <div class="ftitlebox"><b id="ftitle"></b><span id="fsub"></span></div>
+      <span id="fclock" class="fclock">00:00</span>
+    </div>
+    <div class="fnav">
+      <button type="button" id="fprev" class="fbtn" aria-label="Prethodni zadatak">‹</button>
+      <span id="fprog" class="fprog"></span>
+      <button type="button" id="fnext" class="fbtn" aria-label="Sljedeći zadatak">›</button>
+      <button type="button" id="fsubmit" class="btn primary fsub">Predaj</button>
+    </div>
+    <p id="frule" class="frule"></p>
+    <div id="fpz" class="fpz"><div id="fflash" class="fflash" hidden></div></div>
+    <div id="tools" class="tools"></div>
+    <div id="pad" class="pad"></div>
+  </div>
+</div>
+<script>
+(function (G) {
+'use strict';
+const rnd = n => Math.floor(Math.random() * n);
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+const PC = new Uint8Array(1024); for (let i = 1; i < 1024; i++) PC[i] = PC[i >> 1] + (i & 1);
+const VAL = new Uint8Array(1024); for (let v = 1; v <= 9; v++) VAL[1 << v] = v;
+
+function orthPairs(n) { const o = []; for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const a = r * n + c; if (c + 1 < n) o.push([a, a + 1]); if (r + 1 < n) o.push([a, a + n]); } return o; }
+function kingPairs(n) { const o = orthPairs(n); for (let r = 0; r + 1 < n; r++) for (let c = 0; c + 1 < n; c++) { o.push([r * n + c, (r + 1) * n + c + 1]); o.push([r * n + c + 1, (r + 1) * n + c]); } return o; }
+function nbOf(n, a) { const r = Math.floor(a / n), c = a % n, o = []; if (r > 0) o.push(a - n); if (r < n - 1) o.push(a + n); if (c > 0) o.push(a - 1); if (c < n - 1) o.push(a + 1); return o; }
+
+function boxRegions(n, br, bc) { const reg = []; for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) reg.push(Math.floor(r / br) * (n / bc) + Math.floor(c / bc)); return reg; }
+
+function growRegions(n) {
+  const N = n * N0(n);
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const reg = new Array(N).fill(-1), size = new Array(n).fill(0), seeds = shuffle([...Array(N).keys()]).slice(0, n);
+    seeds.forEach((c, g) => { reg[c] = g; size[g] = 1; });
+    let ok = true;
+    for (let step = n; step < N; step++) {
+      const open = [];
+      for (let g = 0; g < n; g++) if (size[g] < n) open.push(g);
+      shuffle(open);
+      let placed = false;
+      for (const g of open) {
+        const cand = [];
+        for (let i = 0; i < N; i++) if (reg[i] === g) for (const q of nbOf(n, i)) if (reg[q] < 0 && !cand.includes(q)) cand.push(q);
+        if (cand.length) { const q = cand[rnd(cand.length)]; reg[q] = g; size[g]++; placed = true; break; }
+      }
+      if (!placed) { ok = false; break; }
+    }
+    if (ok) return reg;
+  }
+  return null;
+}
+function N0(n) { return n; }
+function randomRegions(n) {
+  const g = growRegions(n); if (g) return g;
+  const N = n * n, reg = new Array(N), order = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) order.push(r * n + (r % 2 ? n - 1 - c : c));
+  order.forEach((cell, k) => reg[cell] = Math.floor(k / n));
+  const conn = g => {
+    const cells = []; for (let i = 0; i < N; i++) if (reg[i] === g) cells.push(i);
+    const seen = new Set([cells[0]]), st = [cells[0]];
+    while (st.length) { const x = st.pop(); for (const q of nbOf(n, x)) if (reg[q] === g && !seen.has(q)) { seen.add(q); st.push(q); } }
+    return seen.size === cells.length;
+  };
+  let done = 0, tries = 0;
+  while (done < N * 8 && tries < 30000) {
+    tries++;
+    const a = rnd(N), ga = reg[a];
+    const nbs = nbOf(n, a).filter(x => reg[x] !== ga); if (!nbs.length) continue;
+    const b = nbs[rnd(nbs.length)], gb = reg[b];
+    reg[a] = gb; reg[b] = ga;
+    if (conn(ga) && conn(gb)) done++; else { reg[a] = ga; reg[b] = gb; }
+  }
+  return reg;
+}
+
+function makeProblem(p) {
+  const n = p.n, N = n * n, full = (1 << (n + 1)) - 2;
+  const units = [];
+  for (let r = 0; r < n; r++) { const u = []; for (let c = 0; c < n; c++) u.push(r * n + c); units.push(u); }
+  for (let c = 0; c < n; c++) { const u = []; for (let r = 0; r < n; r++) u.push(r * n + c); units.push(u); }
+  if (p.reg) { const m = {}; p.reg.forEach((g, i) => (m[g] = m[g] || []).push(i)); Object.values(m).forEach(u => units.push(u)); }
+  if (p.diag) { const d1 = [], d2 = []; for (let i = 0; i < n; i++) { d1.push(i * n + i); d2.push(i * n + n - 1 - i); } units.push(d1, d2); }
+  const ps = Array.from({ length: N }, () => new Set());
+  units.forEach(u => u.forEach(a => u.forEach(b => { if (a !== b) ps[a].add(b); })));
+  const P = { n, N, full, units, peers: ps.map(s => [...s]), peerSet: ps, dom0: new Uint16Array(N).fill(full), bin: [], cages: [] };
+  const bin = (a, b, fn) => {
+    const ab = new Uint16Array(n + 1), ba = new Uint16Array(n + 1);
+    for (let x = 1; x <= n; x++) for (let y = 1; y <= n; y++) if (fn(x, y)) { ab[x] |= 1 << y; ba[y] |= 1 << x; }
+    P.bin.push({ a, b, ab, ba });
+  };
+  const cage = (cells, test, partial) => {
+    const conf = cells.map((c, i) => { const o = []; for (let j = 0; j < i; j++) if (P.peerSet[c].has(cells[j])) o.push(j); return o; });
+    P.cages.push({ cells, test, partial, conf });
+  };
+  const k = p.kind;
+  if (k === 'adj' && p.bars) orthPairs(n).forEach(([a, b]) => { const f = !!p.bars[a + ',' + b]; bin(a, b, (x, y) => (Math.abs(x - y) === 1) === f); });
+  if (k === 'niz' && p.lines) kingPairs(n).forEach(([a, b]) => { const f = !!p.lines[a + ',' + b]; bin(a, b, (x, y) => (Math.abs(x - y) === 1) === f); });
+  if (k === 'vx' && p.marks) orthPairs(n).forEach(([a, b]) => { const m = p.marks[a + ',' + b]; bin(a, b, (x, y) => ((x + y === 5) === (m === 'V')) && ((x + y === 10) === (m === 'X'))); });
+  if (k === 'gt' && p.signs) p.signs.forEach(s => bin(s.a, s.b, s.rel === '<' ? (x, y) => x < y : (x, y) => x > y));
+  if (k === 'par' && p.even) { let ev = 0, od = 0; for (let v = 1; v <= n; v++) { if (v % 2) od |= 1 << v; else ev |= 1 << v; } p.even.forEach((e, i) => P.dom0[i] &= e ? ev : od); }
+  if (k === 'g123' && p.grp) { const gs = n / 3; p.grp.forEach((g, i) => { let m = 0; for (let v = g * gs + 1; v <= (g + 1) * gs; v++) m |= 1 << v; P.dom0[i] &= m; }); }
+  if (p.squares) p.squares.forEach(([r, c]) => cage([r * n + c, r * n + c + 1, (r + 1) * n + c, (r + 1) * n + c + 1], v => 10 * v[2] + v[3] === v[0] * v[1]));
+  if (p.cages) p.cages.forEach(cg => {
+    const t = cg.val;
+    if (cg.op === '+') cage(cg.cells, v => v.reduce((s, x) => s + x, 0) === t, (v, i) => { let s = 0; for (let j = 0; j <= i; j++) s += v[j]; return s <= t; });
+    else if (cg.op === '*') cage(cg.cells, v => v.reduce((s, x) => s * x, 1) === t, (v, i) => { let s = 1; for (let j = 0; j <= i; j++) s *= v[j]; return t % s === 0; });
+    else if (cg.op === '-') cage(cg.cells, v => Math.abs(v[0] - v[1]) === t);
+    else if (cg.op === '÷') cage(cg.cells, v => Math.max(v[0], v[1]) === t * Math.min(v[0], v[1]));
+  });
+  return P;
+}
+
+function cageProp(cg, d) {
+  const cs = cg.cells, k = cs.length, sup = new Array(k).fill(0), vals = new Array(k);
+  const rec = i => {
+    if (i === k) { if (cg.test(vals)) for (let j = 0; j < k; j++) sup[j] |= 1 << vals[j]; return; }
+    let m = d[cs[i]];
+    while (m) {
+      const lb = m & -m; m ^= lb; const v = VAL[lb];
+      let ok = true; for (const j of cg.conf[i]) if (vals[j] === v) { ok = false; break; }
+      if (!ok) continue;
+      vals[i] = v;
+      if (cg.partial && !cg.partial(vals, i)) continue;
+      rec(i + 1);
+    }
+  };
+  rec(0);
+  let ch = 0;
+  for (let j = 0; j < k; j++) { const nd = d[cs[j]] & sup[j]; if (nd !== d[cs[j]]) { if (!nd) return -1; d[cs[j]] = nd; ch = 1; } }
+  return ch;
+}
+
+function propagate(P, d) {
+  let ch = true;
+  while (ch) {
+    ch = false;
+    for (let i = 0; i < P.N; i++) {
+      const m = d[i]; if (!m) return false;
+      if ((m & (m - 1)) === 0) {
+        const pr = P.peers[i];
+        for (let k = 0; k < pr.length; k++) { const q = pr[k]; if (d[q] & m) { d[q] &= ~m; if (!d[q]) return false; ch = true; } }
+      }
+    }
+    for (const u of P.units) {
+      let once = 0, twice = 0;
+      for (let k = 0; k < u.length; k++) { const x = d[u[k]]; twice |= once & x; once |= x; }
+      if (once !== P.full) return false;
+      const uq = once & ~twice;
+      if (uq) for (let k = 0; k < u.length; k++) { const c = u[k], x = d[c] & uq; if (x && x !== d[c]) { if (PC[x] > 1) return false; d[c] = x; ch = true; } }
+    }
+    for (const b of P.bin) {
+      let m = d[b.a], db = d[b.b], na = 0;
+      while (m) { const lb = m & -m; m ^= lb; if (b.ab[VAL[lb]] & db) na |= lb; }
+      if (!na) return false; if (na !== d[b.a]) { d[b.a] = na; ch = true; }
+      m = db; let nb = 0;
+      while (m) { const lb = m & -m; m ^= lb; if (b.ba[VAL[lb]] & na) nb |= lb; }
+      if (!nb) return false; if (nb !== db) { d[b.b] = nb; ch = true; }
+    }
+    for (const cg of P.cages) { const r = cageProp(cg, d); if (r < 0) return false; if (r) ch = true; }
+  }
+  return true;
+}
+
+function solve(P, givens, limit, randomize, nodeLimit) {
+  const dom = Uint16Array.from(P.dom0);
+  const res = { count: 0, sols: [], nodes: 0, aborted: false };
+  if (givens) for (let i = 0; i < P.N; i++) if (givens[i]) { dom[i] &= 1 << givens[i]; if (!dom[i]) return res; }
+  const rec = d => {
+    if (res.aborted || res.count >= limit) return;
+    if (++res.nodes > nodeLimit) { res.aborted = true; return; }
+    if (!propagate(P, d)) return;
+    let best = -1, bc = 99;
+    for (let i = 0; i < P.N; i++) { const c = PC[d[i]]; if (c > 1 && c < bc) { bc = c; best = i; if (c === 2) break; } }
+    if (best < 0) { res.count++; res.sols.push(Array.from(d, m => VAL[m])); return; }
+    const vals = []; for (let v = 1; v <= P.n; v++) if (d[best] & (1 << v)) vals.push(v);
+    if (randomize) shuffle(vals);
+    for (const v of vals) { const nd = d.slice(); nd[best] = 1 << v; rec(nd); if (res.aborted || res.count >= limit) return; }
+  };
+  rec(dom);
+  return res;
+}
+
+function tileCages(n, weights) {
+  const N = n * n, id = new Array(N).fill(-1), cages = [];
+  const pick = () => { const t = weights.reduce((s, w) => s + w[1], 0); let x = Math.random() * t; for (const [s, w] of weights) { x -= w; if (x <= 0) return s; } return weights[0][0]; };
+  for (const s of shuffle([...Array(N).keys()])) {
+    if (id[s] >= 0) continue;
+    const target = pick(), cells = [s]; id[s] = cages.length;
+    while (cells.length < target) {
+      const cand = []; for (const c of cells) for (const q of nbOf(n, c)) if (id[q] < 0 && !cand.includes(q)) cand.push(q);
+      if (!cand.length) break;
+      const q = cand[rnd(cand.length)]; id[q] = cages.length; cells.push(q);
+    }
+    cages.push(cells);
+  }
+  for (let k = 0; k < cages.length; k++) if (cages[k].length === 1) {
+    const c = cages[k][0]; let bj = -1;
+    for (const q of nbOf(n, c)) { const j = id[q]; if (j !== k && (bj < 0 || cages[j].length < cages[bj].length)) bj = j; }
+    if (bj >= 0) { cages[bj].push(c); id[c] = bj; cages[k] = []; }
+  }
+  return cages.filter(c => c.length);
+}
+
+function pickSquares(n, count) {
+  for (let t = 0; t < 200; t++) {
+    const used = new Set(), sq = [];
+    for (const [r, c] of shuffle((() => { const o = []; for (let r = 0; r < n - 1; r++) for (let c = 0; c < n - 1; c++) o.push([r, c]); return o; })())) {
+      const cs = [r * n + c, r * n + c + 1, (r + 1) * n + c, (r + 1) * n + c + 1];
+      if (cs.some(x => used.has(x))) continue;
+      cs.forEach(x => used.add(x)); sq.push([r, c]); if (sq.length === count) return sq;
+    }
+  }
+  return [];
+}
+
+function derive(b, sol, spec, attempt) {
+  const n = b.n, k = b.kind;
+  if (k === 'g123') b.grp = sol.map(v => Math.floor((v - 1) / (n / 3)));
+  if (k === 'par') b.even = sol.map(v => v % 2 === 0);
+  if (k === 'adj') { b.bars = {}; orthPairs(n).forEach(([a, c]) => { if (Math.abs(sol[a] - sol[c]) === 1) b.bars[a + ',' + c] = 1; }); }
+  if (k === 'niz') { b.lines = {}; kingPairs(n).forEach(([a, c]) => { if (Math.abs(sol[a] - sol[c]) === 1) b.lines[a + ',' + c] = 1; }); }
+  if (k === 'vx') { b.marks = {}; orthPairs(n).forEach(([a, c]) => { const s = sol[a] + sol[c]; if (s === 5) b.marks[a + ',' + c] = 'V'; if (s === 10) b.marks[a + ',' + c] = 'X'; }); }
+  if (k === 'gt') { b.signs = []; orthPairs(n).forEach(([a, c]) => { if (b.reg[a] === b.reg[c]) b.signs.push({ a, b: c, rel: sol[a] < sol[c] ? '<' : '>' }); }); }
+  if (k === 'sum') {
+    const cnt = spec.boxes + Math.floor(attempt / 6), used = new Set(); b.cages = [];
+    for (const [a, c] of shuffle(orthPairs(n))) { if (used.has(a) || used.has(c)) continue; used.add(a); used.add(c); b.cages.push({ cells: [a, c], op: '+', val: sol[a] + sol[c] }); if (b.cages.length >= cnt) break; }
+  }
+  if (k === 'cprod') b.cages = tileCages(n, [[2, 35], [3, 40], [4, 25]]).map(cells => ({ cells, op: '*', val: cells.reduce((s, c) => s * sol[c], 1) }));
+  if (k === 'kendo') b.cages = tileCages(n, [[2, 50], [3, 30], [4, 20]]).map(cells => {
+    const v = cells.map(c => sol[c]);
+    if (cells.length === 2) {
+      const ops = ['+', '-', '*']; if (Math.max(...v) % Math.min(...v) === 0) ops.push('÷', '÷');
+      const op = ops[rnd(ops.length)];
+      const val = op === '+' ? v[0] + v[1] : op === '-' ? Math.abs(v[0] - v[1]) : op === '*' ? v[0] * v[1] : Math.max(...v) / Math.min(...v);
+      return { cells, op, val };
+    }
+    return Math.random() < 0.5 ? { cells, op: '+', val: v.reduce((s, x) => s + x, 0) } : { cells, op: '*', val: v.reduce((s, x) => s * x, 1) };
+  });
+}
+
+function generate(spec, opts) {
+  opts = opts || {};
+  const n = spec.n, N = n * n, target = spec.giv, budget = opts.budget || 1200, t0 = Date.now();
+  let best = null, attempt = 0;
+  for (;;) {
+    const el = Date.now() - t0;
+    if (best && el > budget) break;
+    if (el > budget * 8) throw new Error('Generiranje nije uspjelo: ' + spec.kind);
+    attempt++;
+    const b = { kind: spec.kind, n, diag: !!spec.diag, reg: null };
+    if (spec.reg === 'irr') b.reg = randomRegions(n); else if (spec.reg === 'box') b.reg = boxRegions(n, spec.box[0], spec.box[1]);
+    if (spec.kind === 'tabla') b.squares = pickSquares(n, spec.squares);
+    const sr = solve(makeProblem(b), null, 1, true, 40000);
+    if (!sr.count) continue;
+    const sol = sr.sols[0];
+    derive(b, sol, spec, attempt);
+    const P = makeProblem(b);
+    for (let rep = 0; rep < 12; rep++) {
+      const g = sol.slice(); let count = N;
+      for (const i of shuffle([...Array(N).keys()])) {
+        if (count <= target) break;
+        const t = g[i]; g[i] = 0;
+        const r = solve(P, g, 2, false, 3000);
+        if (r.count === 1 && !r.aborted) count--; else g[i] = t;
+      }
+      if (!best || count < best.count) best = { count, p: Object.assign({}, b, { sol, giv: g.slice(), spec }) };
+      if (count <= target) return best.p;
+    }
+  }
+  return best.p;
+}
+
+G.SudokuEngine = { generate, solve, makeProblem, orthPairs, kingPairs, nbOf, boxRegions };
+if (typeof module !== 'undefined') module.exports = G.SudokuEngine;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function (G) {
+'use strict';
+// Broj otkrivenih brojeva (giv) procijenjen je s fotografija listića. Mijenja se ovdje.
+const R = {
+  latin: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku i stupcu.',
+  irr: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku, stupcu te posebno označenom liku.',
+  diag: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku, stupcu te na obje dijagonale.',
+  box: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku, stupcu i posebno označenom {box}.',
+  boxd: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku, stupcu, posebno označenom {box} te na obje dijagonale.',
+  irrd: 'Dopunite mrežu brojevima od 1 do {n} tako da se isti broj ne javlja u nijednom retku, stupcu i posebno označenom liku te na obje dijagonale.',
+  g123: 'Uz uobičajeno razlikovanje brojeva u retku, stupcu i liku: u kružiće se upisuju brojevi {a}, u kvadratiće {b}, a {c} u preostala polja.',
+  adj: 'Klasični sudoku kod kojeg je između SVAKA dva susjedna broja ucrtana pregrada. Brojevi 1 i {n} se ne smatraju susjednim.',
+  par: 'Uz uobičajeno razlikovanje brojeva u retku, stupcu i liku. U osjenčana polja upisuju se parni, a u bijela neparni brojevi.',
+  niz: 'Uz uobičajeno razlikovanje brojeva, brojevi na ucrtanim linijama se povećavaju ili smanjuju za jedan. Nigdje se ne pojavljuju dva uzastopna broja (ni dijagonalno) a da nisu povezana linijom.',
+  vx: 'Klasični sudoku kod kojeg svaki upisani rimski broj V ili X (5 ili 10) predstavlja zbroj brojeva u pripadnim poljima. Ne postoje dva susjedna broja kojima je suma 5 ili 10, a da ona nije označena u mreži.',
+  sum: 'Brojevi u malim pravokutnicima predstavljaju zbroj brojeva u pripadnim poljima. Odredite raspored brojeva od 1 do {n} u svakom retku, stupcu i liku.',
+  tabla: 'Uz uobičajeno razlikovanje brojeva moramo napomenuti da u osjenčanim kvadratima 2×2 donja dva broja predstavljaju dvoznamenkasti broj koji je umnožak gornja dva broja.',
+  gt: 'Upišite brojeve od 1 do 6 u svaki pravokutnik 2×3 tako da sve nejednakosti budu zadovoljene. Brojevi se moraju razlikovati u pravokutniku, retku i stupcu.',
+  cprod: 'Uz uobičajeno razlikovanje brojeva u retku, stupcu i liku 2×3. Mali brojevi su umnožak svih brojeva unutar omeđenog prostora. Isti broj se može ponoviti unutar prostora, ali mora biti u različitim redovima, stupcima i likovima.',
+  kendo: 'Uz uobičajeno razlikovanje brojeva u retku, stupcu i liku. Brojevi u omeđenim poljima rezultat su računske operacije brojeva u tim poljima. Isti brojevi mogu se ponavljati unutar omeđenih polja, ali u različitim redovima i stupcima.'
+};
+const f = (t, o) => t.replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : '');
+const B9 = { reg: 'box', box: [3, 3] }, B6 = { reg: 'box', box: [2, 3] };
+
+const SETS = [
+  { id: 's1', title: '1. set · Klasika', short: 'Klasika', minutes: 45, groups: [
+    { name: 'Minijature', puzzles: [
+      { kind: 'plain', n: 4, reg: 'none', giv: 5, pts: 3, rule: f(R.latin, { n: 4 }), label: '4×4' },
+      { kind: 'plain', n: 5, reg: 'irr', giv: 5, pts: 5, rule: f(R.irr, { n: 5 }), label: '5×5 nepravilni likovi' },
+      { kind: 'plain', n: 5, reg: 'none', diag: true, giv: 5, pts: 5, rule: f(R.diag, { n: 5 }), label: '5×5 dijagonalni' }] },
+    { name: 'Sudoku 7×7', puzzles: [
+      { kind: 'plain', n: 7, reg: 'irr', giv: 15, pts: 10, rule: f(R.irr, { n: 7 }), label: '7×7 nepravilni likovi' },
+      { kind: 'plain', n: 7, reg: 'irr', diag: true, giv: 13, pts: 10, rule: f(R.irrd, { n: 7 }), label: '7×7 dijagonalni' }] },
+    { name: 'Klasični sudoku 9×9', puzzles: [{ kind: 'plain', n: 9, ...B9, giv: 30, pts: 20, rule: f(R.box, { n: 9, box: 'kvadratu 3×3' }) }] },
+    { name: 'Klasični dijagonalni sudoku', puzzles: [{ kind: 'plain', n: 9, ...B9, diag: true, giv: 30, pts: 20, rule: f(R.boxd, { n: 9, box: 'kvadratu 3×3' }) }] },
+    { name: 'Sudoku s nepravilnim likovima', puzzles: [{ kind: 'plain', n: 9, reg: 'irr', giv: 22, pts: 25, rule: f(R.irr, { n: 9 }) }] },
+    { name: 'Dijagonalni sudoku s nepravilnim likovima', puzzles: [{ kind: 'plain', n: 9, reg: 'irr', diag: true, giv: 16, pts: 25, rule: f(R.irrd, { n: 9 }) }] }
+  ] },
+  { id: 's2', title: '2. set · Varijacije', short: 'Varijacije', minutes: 30, groups: [
+    { name: '123-456-789 sudoku', puzzles: [
+      { kind: 'g123', n: 6, ...B6, giv: 3, pts: 10, rule: f(R.g123, { a: '1-2', b: '3-4', c: '5-6' }), label: '6×6' },
+      { kind: 'g123', n: 9, ...B9, giv: 11, pts: 20, rule: f(R.g123, { a: '1-2-3', b: '4-5-6', c: '7-8-9' }), label: '9×9' }] },
+    { name: 'Susjedni sudoku', puzzles: [
+      { kind: 'adj', n: 6, ...B6, giv: 1, pts: 15, rule: f(R.adj, { n: 6 }), label: '6×6' },
+      { kind: 'adj', n: 9, ...B9, giv: 12, pts: 25, rule: f(R.adj, { n: 9 }), label: '9×9' }] },
+    { name: 'Par – Nepar sudoku', puzzles: [
+      { kind: 'par', n: 6, ...B6, giv: 6, pts: 10, rule: R.par, label: '6×6' },
+      { kind: 'par', n: 9, ...B9, giv: 17, pts: 20, rule: R.par, label: '9×9' }] },
+    { name: 'Niz sudoku', puzzles: [
+      { kind: 'niz', n: 6, ...B6, giv: 2, pts: 15, rule: R.niz, label: '6×6' },
+      { kind: 'niz', n: 9, ...B9, giv: 5, pts: 25, rule: R.niz, label: '9×9' }] }
+  ] },
+  { id: 's3', title: '3. set · Matematika', short: 'Matematika', minutes: 30, groups: [
+    { name: 'V X sudoku', puzzles: [
+      { kind: 'vx', n: 6, ...B6, giv: 4, pts: 10, rule: R.vx, label: '6×6' },
+      { kind: 'vx', n: 9, ...B9, giv: 10, pts: 20, rule: R.vx, label: '9×9' }] },
+    { name: 'Suma sudoku', puzzles: [
+      { kind: 'sum', n: 6, ...B6, giv: 0, boxes: 16, pts: 10, rule: f(R.sum, { n: 6 }), label: '6×6' },
+      { kind: 'sum', n: 9, ...B9, giv: 4, boxes: 27, pts: 20, rule: f(R.sum, { n: 9 }), label: '9×9' }] },
+    { name: 'Produkt na tabli', puzzles: [{ kind: 'tabla', n: 6, ...B6, giv: 4, squares: 5, pts: 15, rule: R.tabla }] },
+    { name: 'Veći > manji', puzzles: [{ kind: 'gt', n: 6, ...B6, giv: 1, pts: 20, rule: R.gt }] },
+    { name: 'Omeđeni produkt', puzzles: [{ kind: 'cprod', n: 6, ...B6, giv: 0, pts: 20, rule: R.cprod }] },
+    { name: 'Kendoku', puzzles: [{ kind: 'kendo', n: 6, ...B6, giv: 1, pts: 20, rule: R.kendo }] }
+  ] },
+  { id: 's4', title: 'Brzinac', short: 'Brzinac', minutes: 15, groups: [
+    { name: 'Minijature 6×6', puzzles: [].concat(
+      Array.from({ length: 6 }, () => ({ kind: 'plain', n: 6, ...B6, giv: 10, pts: 5, rule: f(R.box, { n: 6, box: 'liku 2×3' }), label: 'klasični' })),
+      Array.from({ length: 3 }, () => ({ kind: 'plain', n: 6, ...B6, diag: true, giv: 8, pts: 5, rule: f(R.boxd, { n: 6, box: 'liku 2×3' }), label: 'dijagonalni' }))) }
+  ] }
+];
+G.SUDOKU_SETS = SETS;
+if (typeof module !== 'undefined') module.exports = SETS;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+'use strict';
+const E = window.SudokuEngine, SETS = window.SUDOKU_SETS;
+const NS = 'http://www.w3.org/2000/svg';
+const $ = s => document.querySelector(s);
+function h(tag, attrs) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) { if (k === 'class') e.className = attrs[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]); else e.setAttribute(k, attrs[k]); }
+  for (let i = 2; i < arguments.length; i++) [].concat(arguments[i]).forEach(x => { if (x != null && x !== false) e.append(x.nodeType ? x : document.createTextNode(x)); });
+  return e;
+}
+function sv(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs || {}) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+const tick = () => new Promise(r => setTimeout(r, 0));
+const fmt = s => { s = Math.max(0, Math.round(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+const S = { setIdx: 0, phase: 'idle', items: [], token: 0, endAt: 0, startAt: 0, free: false, sel: null, brush: null, pencil: false, fi: 0, confirm: false, showSol: false, timer: null, res: null, prog: [0, 0] };
+
+/* ---------- crtanje zadatka ---------- */
+const CS = 44, PD = 6;
+function drawPuzzle(it, k, live) {
+  const p = it.p, n = p.n, S2 = n * CS + 2 * PD;
+  const X = c => PD + c * CS, Y = r => PD + r * CS;
+  const cx = i => PD + (i % n + 0.5) * CS, cy = i => PD + (Math.floor(i / n) + 0.5) * CS;
+  const svg = sv('svg', { viewBox: `0 0 ${S2} ${S2}`, class: 'puz', role: 'img', 'aria-label': 'Sudoku mreža ' + n + '×' + n });
+  svg.style.maxWidth = live ? '720px' : (n * 46 + 12) + 'px'; it.k = k;
+  sv('rect', { x: 0, y: 0, width: S2, height: S2, class: 'paper' }, svg);
+  const shade = (i, cls) => sv('rect', { x: X(i % n), y: Y(Math.floor(i / n)), width: CS, height: CS, class: cls }, svg);
+  if (p.diag) for (let i = 0; i < n; i++) { shade(i * n + i, 'shade'); if (i * n + n - 1 - i !== i * n + i) shade(i * n + n - 1 - i, 'shade'); }
+  if (p.even) p.even.forEach((e, i) => e && shade(i, 'shade'));
+  if (p.squares) p.squares.forEach(([r, c]) => { sv('rect', { x: X(c), y: Y(r), width: 2 * CS, height: 2 * CS, class: 'shade' }, svg); sv('rect', { x: X(c) + 3, y: Y(r) + 3, width: 2 * CS - 6, height: 2 * CS - 6, class: 'dash' }, svg); });
+  it.lay = sv('g', {}, svg); const hl = sv('rect', { x: 0, y: 0, width: CS, height: CS, class: 'hl', visibility: 'hidden' }, svg); it.hl = hl;
+  for (let i = 1; i < n; i++) { sv('line', { x1: X(i), y1: PD, x2: X(i), y2: PD + n * CS, class: 'thin' }, svg); sv('line', { x1: PD, y1: Y(i), x2: PD + n * CS, y2: Y(i), class: 'thin' }, svg); }
+  // linije "niz"
+  if (p.lines) Object.keys(p.lines).forEach(key => { const [a, b] = key.split(',').map(Number), dx = cx(b) - cx(a), dy = cy(b) - cy(a), d = Math.hypot(dx, dy), t = 13 / d; sv('line', { x1: cx(a) + dx * t, y1: cy(a) + dy * t, x2: cx(b) - dx * t, y2: cy(b) - dy * t, class: 'niz' }, svg); });
+  // kavezi
+  const cages = p.cages || [];
+  (p.kind === 'sum' ? [] : cages).forEach(cg => {
+    const set = new Set(cg.cells), g = sv('g', { class: 'cage' }, svg), I = 3.5;
+    cg.cells.forEach(i => {
+      const r = Math.floor(i / n), c = i % n, L = c > 0 && set.has(i - 1), Rr = c < n - 1 && set.has(i + 1), U = r > 0 && set.has(i - n), D = r < n - 1 && set.has(i + n);
+      const x0 = X(c), y0 = Y(r), x1 = x0 + CS, y1 = y0 + CS;
+      if (!U) sv('line', { x1: x0 + (L ? 0 : I), y1: y0 + I, x2: x1 - (Rr ? 0 : I), y2: y0 + I }, g);
+      if (!D) sv('line', { x1: x0 + (L ? 0 : I), y1: y1 - I, x2: x1 - (Rr ? 0 : I), y2: y1 - I }, g);
+      if (!L) sv('line', { x1: x0 + I, y1: y0 + (U ? 0 : I), x2: x0 + I, y2: y1 - (D ? 0 : I) }, g);
+      if (!Rr) sv('line', { x1: x1 - I, y1: y0 + (U ? 0 : I), x2: x1 - I, y2: y1 - (D ? 0 : I) }, g);
+    });
+    const first = Math.min(...cg.cells), t = sv('text', { x: X(first % n) + 6, y: Y(Math.floor(first / n)) + 15, class: 'clab' }, svg);
+    t.textContent = cg.val + (p.kind === 'kendo' ? cg.op : '');
+  });
+  // sum kutije
+  if (p.kind === 'sum') cages.forEach(cg => { const [a, b] = cg.cells, mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2; sv('rect', { x: mx - 13, y: my - 8, width: 26, height: 16, class: 'sumbox' }, svg); const t = sv('text', { x: mx, y: my + 1, class: 'sumtxt' }, svg); t.textContent = cg.val; });
+  // 123-456-789 oblici
+  if (p.grp) p.grp.forEach((g, i) => { if (g === 0) sv('circle', { cx: cx(i), cy: cy(i), r: CS * 0.36, class: 'shape' }, svg); else if (g === 1) sv('rect', { x: cx(i) - CS * 0.32, y: cy(i) - CS * 0.32, width: CS * 0.64, height: CS * 0.64, class: 'shape' }, svg); });
+  // pregrade
+  if (p.bars) Object.keys(p.bars).forEach(key => { const [a, b] = key.split(',').map(Number), mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2; if (b === a + 1) sv('rect', { x: mx - 2.5, y: my - 9, width: 5, height: 18, rx: 2, class: 'bar' }, svg); else sv('rect', { x: mx - 9, y: my - 2.5, width: 18, height: 5, rx: 2, class: 'bar' }, svg); });
+  // V / X
+  if (p.marks) Object.keys(p.marks).forEach(key => { const [a, b] = key.split(',').map(Number), mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2; sv('rect', { x: mx - 8, y: my - 8, width: 16, height: 16, rx: 3, class: 'vxbox' }, svg); const t = sv('text', { x: mx, y: my + 1, class: 'vxtxt' }, svg); t.textContent = p.marks[key]; });
+  // nejednakosti
+  if (p.signs) p.signs.forEach(sg => {
+    const mx = (cx(sg.a) + cx(sg.b)) / 2, my = (cy(sg.a) + cy(sg.b)) / 2, hor = sg.b === sg.a + 1, lt = sg.rel === '<'; let pts;
+    if (hor) pts = lt ? [[mx + 3, my - 6], [mx - 3, my], [mx + 3, my + 6]] : [[mx - 3, my - 6], [mx + 3, my], [mx - 3, my + 6]];
+    else pts = lt ? [[mx - 6, my + 3], [mx, my - 3], [mx + 6, my + 3]] : [[mx - 6, my - 3], [mx, my + 3], [mx + 6, my - 3]];
+    sv('polyline', { points: pts.map(q => q.join(',')).join(' '), class: 'sign' }, svg);
+  });
+  // debele crte likova
+  if (p.reg) for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const i = r * n + c;
+    if (c < n - 1 && p.reg[i] !== p.reg[i + 1]) sv('line', { x1: X(c + 1), y1: Y(r), x2: X(c + 1), y2: Y(r + 1), class: 'thick' }, svg);
+    if (r < n - 1 && p.reg[i] !== p.reg[i + n]) sv('line', { x1: X(c), y1: Y(r + 1), x2: X(c + 1), y2: Y(r + 1), class: 'thick' }, svg); }
+  sv('rect', { x: PD, y: PD, width: n * CS, height: n * CS, class: 'outer' }, svg);
+  // brojevi
+  it.txt = [];
+  for (let i = 0; i < n * n; i++) { const t = sv('text', { x: cx(i), y: cy(i) + 1, class: p.giv[i] ? 'dg' : 'du' }, svg); t.textContent = p.giv[i] || ''; it.txt.push(t); }
+  it.nt = []; for (let i = 0; i < n * n; i++) it.nt.push(sv('g', { class: 'notes' }, svg));
+  // klik slojevi
+  for (let i = 0; i < n * n; i++) { if (p.giv[i] || !live) continue; const r = sv('rect', { x: X(i % n), y: Y(Math.floor(i / n)), width: CS, height: CS, class: 'hit', 'data-i': i }, svg); r.addEventListener('pointerdown', ev => { ev.preventDefault(); select(k, i); }); }
+  it.svg = svg; return svg;
+}
+
+/* ---------- unos ---------- */
+function select(k, i) {
+  if (S.phase !== 'running') return;
+  const it = S.items[k]; if (it.solved) return;
+  S.sel = { k, i };
+  if (S.brush !== null) { const cur = it.ans[i]; setDigit(S.brush === 0 || (!S.pencil && cur === S.brush) ? 0 : S.brush); }
+  paint(it); updatePad();
+}
+function setDigit(v) {
+  if (S.phase !== 'running' || !S.sel) return;
+  const it = S.items[S.sel.k], i = S.sel.i, p = it.p;
+  if (p.giv[i] || it.solved || v > p.n) return;
+  const prev = { i, a: it.ans[i], n: it.notes[i] };
+  if (v === 0) { if (!prev.a && !prev.n) return; it.ans[i] = 0; it.notes[i] = 0; }
+  else if (S.pencil) { if (it.ans[i]) return; it.notes[i] ^= 1 << v; }
+  else { it.ans[i] = v; it.notes[i] = 0; }
+  it.hist.push(prev); if (it.hist.length > 300) it.hist.shift();
+  paint(it); updatePad();
+  if (!S.pencil || v === 0) trySolved(it);
+}
+function undo() {
+  if (S.phase !== 'running') return; const it = S.items[S.fi]; if (!it || it.solved || !it.hist.length) return;
+  const h0 = it.hist.pop(); it.ans[h0.i] = h0.a; it.notes[h0.i] = h0.n; paint(it); updatePad();
+}
+function trySolved(it) {
+  if (!it.p.sol.every((v, i) => it.p.giv[i] || it.ans[i] === v)) return;
+  it.solved = true; S.sel = null; paint(it); updatePad();
+  const f = $('#fflash'); f.textContent = '✓ Točno · ' + it.spec.pts + ' b.'; f.hidden = false;
+  const token = S.token;
+  setTimeout(() => { f.hidden = true; if (token === S.token && S.phase === 'running') advance(); }, 900);
+}
+function advance() {
+  const n = S.items.length;
+  for (let d = 1; d <= n; d++) { const j = (S.fi + d) % n; if (!S.items[j].solved) { openFocus(j); return; } }
+  submit(false);
+}
+function move(dx, dy) {
+  if (!S.sel) return; const it = S.items[S.sel.k], n = it.p.n; let r = Math.floor(S.sel.i / n) + dy, c = S.sel.i % n + dx;
+  for (let t = 0; t < n; t++) { if (r < 0 || c < 0 || r >= n || c >= n) return; if (!it.p.giv[r * n + c]) { select(S.sel.k, r * n + c); return; } r += dy; c += dx; }
+}
+document.addEventListener('keydown', ev => {
+  if (S.phase !== 'running' || !S.sel || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (/^[1-9]$/.test(ev.key)) { setDigit(+ev.key); ev.preventDefault(); }
+  else if (['Backspace', 'Delete', '0', ' '].includes(ev.key)) { setDigit(0); ev.preventDefault(); }
+  else if (ev.key === 'ArrowLeft') { move(-1, 0); ev.preventDefault(); } else if (ev.key === 'ArrowRight') { move(1, 0); ev.preventDefault(); }
+  else if (ev.key === 'ArrowUp') { move(0, -1); ev.preventDefault(); } else if (ev.key === 'ArrowDown') { move(0, 1); ev.preventDefault(); }
+});
+function buildPad() {
+  const pad = $('#pad'); pad.innerHTML = '';
+  for (let v = 1; v <= 9; v++) pad.append(h('button', { type: 'button', 'data-v': v, 'aria-label': 'Broj ' + v, onclick: () => pickBrush(v) }, h('span', { class: 'pn' }, v), h('span', { class: 'pc' })));
+  const t = $('#tools'); t.innerHTML = '';
+  t.append(h('button', { type: 'button', id: 'tundo', onclick: undo }, h('span', { class: 'ti' }, '↶'), 'Poništi'));
+  t.append(h('button', { type: 'button', id: 'ters', onclick: () => { if (S.sel && S.brush === null) setDigit(0); else pickBrush(0); } }, h('span', { class: 'ti' }, '⌫'), 'Obriši'));
+  t.append(h('button', { type: 'button', id: 'tpen', onclick: () => { S.pencil = !S.pencil; updatePad(); } }, h('span', { class: 'ti' }, '✎'), 'Olovka ', h('span', { id: 'pstate', class: 'ps' }, 'OFF')));
+}
+function pickBrush(v) { S.brush = S.brush === v ? null : v; const it = S.items[S.fi]; if (it) paint(it); updatePad(); }
+function updatePad() {
+  if (S.phase !== 'running') return; const it = S.items[S.fi]; if (!it) return; const n = it.p.n;
+  const cnt = new Array(10).fill(0); for (let i = 0; i < n * n; i++) { const v = it.p.giv[i] || it.ans[i]; if (v) cnt[v]++; }
+  $('#pad').querySelectorAll('button').forEach(b => { const v = +b.dataset.v; b.hidden = v > n; const rem = n - cnt[v]; b.querySelector('.pc').textContent = Math.max(0, rem); b.classList.toggle('done', rem <= 0); b.classList.toggle('on', S.brush === v); b.setAttribute('aria-pressed', String(S.brush === v)); });
+  $('#ters').classList.toggle('on', S.brush === 0); $('#tpen').classList.toggle('on', S.pencil); $('#pstate').textContent = S.pencil ? 'ON' : 'OFF';
+  $('#fprog').textContent = (S.fi + 1) + ' / ' + S.items.length + ' · riješeno ' + S.items.filter(x => x.solved).length;
+}
+function openFocus(j) {
+  S.fi = j; S.sel = null; S.brush = null; const it = S.items[j], set = SETS[S.setIdx];
+  $('#focus').hidden = false; document.body.classList.add('fopen');
+  $('#ftitle').textContent = set.groups[it.gi].name; $('#fsub').textContent = (it.spec.label ? it.spec.label + ' · ' : '') + it.spec.pts + ' bodova';
+  $('#frule').textContent = it.spec.rule;
+  const box = $('#fpz'); box.querySelectorAll('svg').forEach(x => x.remove()); box.prepend(drawPuzzle(it, j, true));
+  S.confirm = false; $('#fsubmit').textContent = 'Predaj';
+  paint(it); updatePad(); tickClock();
+}
+function closeFocus() { $('#focus').hidden = true; document.body.classList.remove('fopen'); S.sel = null; S.brush = null; }
+function navFocus(d) { const n = S.items.length; openFocus((S.fi + d + n) % n); }
+function setupFocus() {
+  $('#fback').addEventListener('click', () => { if (S.phase === 'running') { closeFocus(); renderAll(); } });
+  $('#fprev').addEventListener('click', () => navFocus(-1)); $('#fnext').addEventListener('click', () => navFocus(1));
+  $('#fsubmit').addEventListener('click', () => { const b = $('#fsubmit'); if (S.confirm) { submit(false); return; } S.confirm = true; b.textContent = 'Sigurno? Predaj'; setTimeout(() => { S.confirm = false; b.textContent = 'Predaj'; }, 3000); });
+}
+
+/* ---------- tok igre ---------- */
+function totals() { const set = SETS[S.setIdx]; return set.groups.map(g => g.puzzles.reduce((s, p) => s + p.pts, 0)).reduce((a, b) => a + b, 0); }
+async function build(idx) {
+  clearInterval(S.timer); const token = ++S.token;
+  S.setIdx = idx; S.phase = 'gen'; S.sel = null; S.res = null; S.showSol = false; S.items = [];
+  const set = SETS[idx], total = set.groups.reduce((s, g) => s + g.puzzles.length, 0); S.prog = [0, total]; renderAll();
+  const items = [];
+  for (let gi = 0; gi < set.groups.length; gi++) for (const spec of set.groups[gi].puzzles) {
+    await tick(); if (token !== S.token) return;
+    let p; try { p = E.generate(spec, { budget: 900 }); } catch (e) { p = E.generate(spec, { budget: 3000 }); }
+    items.push({ gi, spec, p, ans: new Array(p.n * p.n).fill(0), notes: new Array(p.n * p.n).fill(0), hist: [], solved: false }); S.prog[0] = items.length; renderStatus();
+  }
+  if (token !== S.token) return;
+  S.items = items; S.phase = 'ready'; renderAll();
+}
+function start() {
+  if (S.phase !== 'ready') return;
+  S.free = $('#free') ? $('#free').checked : false; S.phase = 'running'; S.startAt = Date.now(); S.endAt = S.startAt + SETS[S.setIdx].minutes * 60000;
+  renderAll(); openFocus(0); S.timer = setInterval(tickClock, 250); tickClock();
+}
+function elapsed() { return (Date.now() - S.startAt) / 1000; }
+function left() { return Math.max(0, (S.endAt - Date.now()) / 1000); }
+function tickClock() {
+  const c = $('#clock'), fc = $('#fclock'); if (S.phase !== 'running') return;
+  const txt = S.free ? fmt(elapsed()) : fmt(Math.ceil(left())), low = !S.free && left() <= 60;
+  [c, fc].forEach(e => { if (e) { e.textContent = txt; e.classList.toggle('low', low); } });
+  if (!S.free && left() <= 0) submit(true);
+}
+function submit(auto) {
+  if (S.phase !== 'running') return;
+  clearInterval(S.timer);
+  const set = SETS[S.setIdx], used = elapsed(), leftS = S.free ? 0 : left();
+  const per = S.items.map(it => ({ ok: it.p.sol.every((v, i) => it.p.giv[i] ? true : it.ans[i] === v), pts: it.spec.pts }));
+  const all = per.every(r => r.ok);
+  const bonus = (!S.free && all) ? Math.floor(leftS / 60) : 0;
+  const pts = per.reduce((s, r) => s + (r.ok ? r.pts : 0), 0);
+  S.res = { per, all, bonus, pts, total: pts + bonus, used: Math.min(used, set.minutes * 60), auto: !!auto };
+  S.phase = 'done'; S.sel = null; closeFocus(); renderAll();
+}
+function newSheet() { build(S.setIdx); }
+
+/* ---------- prikaz ---------- */
+function renderAll() { renderTabs(); renderStatus(); renderBar(); renderTable(); renderSheet(); }
+function renderTabs() {
+  const box = $('#tabs'); box.innerHTML = '';
+  SETS.forEach((st, i) => {
+    const b = h('button', { type: 'button', class: 'tab' + (i === S.setIdx ? ' on' : ''), 'aria-pressed': String(i === S.setIdx), onclick: () => { if (S.phase !== 'running' && i !== S.setIdx) build(i); } },
+      h('span', { class: 'tn' }, st.short), h('span', { class: 'tm' }, st.minutes + ' min'));
+    b.disabled = S.phase === 'running'; box.append(b);
+  });
+}
+function renderStatus() {
+  const e = $('#status'); if (!e) return;
+  if (S.phase === 'gen') e.textContent = 'Generiram listić… ' + S.prog[0] + ' / ' + S.prog[1];
+  else if (S.phase === 'ready') e.textContent = 'Listić je spreman. Zadaci se otkrivaju kad pritisnete Početak.';
+  else if (S.phase === 'running') e.textContent = S.free ? 'Vježba bez ograničenja vremena.' : 'Vrijeme teče. Svaki zadatak otvara se preko cijelog ekrana; kad ga točno riješite, prelazi na idući.';
+  else if (S.phase === 'done') e.textContent = S.res.auto ? 'Vrijeme je isteklo, listić je predan.' : 'Listić je predan.';
+}
+function renderBar() {
+  const bar = $('#bar'); bar.innerHTML = ''; const set = SETS[S.setIdx];
+  const clockTxt = S.phase === 'running' ? (S.free ? fmt(elapsed()) : fmt(Math.ceil(left()))) : S.phase === 'done' ? fmt(S.res.used) : fmt(set.minutes * 60);
+  const lab = S.phase === 'done' ? 'Vrijeme predaje' : S.phase === 'running' && S.free ? 'Proteklo' : 'Preostalo vrijeme';
+  bar.append(h('div', { class: 'clockbox' }, h('span', { class: 'clab2' }, lab), h('span', { id: 'clock', class: 'clock' }, clockTxt)));
+  const acts = h('div', { class: 'acts' });
+  if (S.phase === 'ready') {
+    acts.append(h('label', { class: 'chk', for: 'free' }, h('input', { type: 'checkbox', id: 'free' }), ' Vježba bez vremena'));
+    acts.append(h('button', { type: 'button', class: 'btn primary', onclick: start }, 'Početak'));
+    acts.append(h('button', { type: 'button', class: 'btn', onclick: newSheet }, 'Drugi listić'));
+  } else if (S.phase === 'running') acts.append(h('button', { type: 'button', class: 'btn primary', onclick: () => submit(false) }, 'Predaj'));
+  else if (S.phase === 'done') {
+    acts.append(h('button', { type: 'button', class: 'btn', onclick: () => { S.showSol = !S.showSol; renderAll(); } }, S.showSol ? 'Sakrij rješenja' : 'Prikaži rješenja'));
+    acts.append(h('button', { type: 'button', class: 'btn primary', onclick: newSheet }, 'Novi listić'));
+  } else if (S.phase === 'gen') acts.append(h('span', { class: 'spin', 'aria-hidden': 'true' }));
+  bar.append(acts);
+}
+function renderTable() {
+  const box = $('#score'); box.innerHTML = ''; const set = SETS[S.setIdx], R = S.res, brz = set.id === 's4';
+  const rows = [];
+  set.groups.forEach((g, gi) => {
+    let mx, got = '';
+    if (brz) { mx = g.puzzles.length + ' × 5'; if (R) got = R.per.filter(r => r.ok).length + ' × 5 = ' + R.per.filter(r => r.ok).length * 5; }
+    else { mx = g.puzzles.map(p => p.pts).join(' + '); if (R) { let k = S.items.map((it, j) => it.gi === gi ? R.per[j] : null).filter(Boolean); got = k.map(r => r.ok ? r.pts : 0).join(' + '); } }
+    rows.push(h('tr', null, h('td', { class: 'c' }, (gi + 1) + '.'), h('td', null, g.name), h('td', { class: 'c' }, mx), h('td', { class: 'c got' }, got || '')));
+  });
+  const t = h('table', { class: 'tbl' },
+    h('thead', null, h('tr', null, h('th', null, 'Br.'), h('th', null, 'Naziv zadatka'), h('th', null, 'Moguće bodova'), h('th', null, 'Ostvareno'))),
+    h('tbody', null, rows,
+      h('tr', null, h('td', { colspan: 2 }, 'Bonus bodovi', R ? h('span', { class: 'sub' }, ' · vrijeme predaje ' + fmt(R.used)) : ''), h('td', { class: 'c' }, 'do ' + set.minutes), h('td', { class: 'c got' }, R ? R.bonus : '')),
+      h('tr', { class: 'tot' }, h('td', { colspan: 2 }, 'Ukupan broj bodova'), h('td', { class: 'c' }, totals() + ' + bonus'), h('td', { class: 'c got' }, R ? R.total : ''))));
+  box.append(h('div', { class: 'scroll' }, t));
+  box.append(h('p', { class: 'note' }, 'Zadatak nosi bodove samo ako je potpuno točan. Bonus: 1 bod za svaku punu preostalu minutu, ako su svi zadaci seta točni.'));
+}
+function renderSheet() {
+  const box = $('#sheet'); box.innerHTML = ''; const set = SETS[S.setIdx];
+  if (S.phase === 'gen') { box.append(h('div', { class: 'ph' }, h('span', { class: 'spin big' }), h('p', null, 'Generiram zadatke s jedinstvenim rješenjem…'))); return; }
+  if (S.phase === 'ready') {
+    box.append(h('div', { class: 'ph' }, h('p', { class: 'phbig' }, S.items.length + ' ' + (S.items.length === 1 ? 'zadatak' : S.items.length < 5 ? 'zadatka' : 'zadataka')),
+      h('p', null, set.title + ' · ' + set.minutes + ' minuta. Pritisnite Početak kad ste spremni.')));
+    return;
+  }
+  let k = 0;
+  set.groups.forEach((g, gi) => {
+    const sec = h('section', { class: 'grp' }, h('h2', null, h('span', { class: 'gn' }, (gi + 1) + '.'), ' ', g.name));
+    const grid = h('div', { class: 'cards' });
+    S.items.forEach((it, j) => {
+      if (it.gi !== gi) return;
+      const svg = drawPuzzle(it, j, false);
+      const badge = S.res ? h('span', { class: 'pill ' + (S.res.per[j].ok ? 'ok' : 'no') }, S.res.per[j].ok ? '✓ ' + it.spec.pts : '✗ 0 / ' + it.spec.pts) : h('span', { class: 'pill' }, it.spec.pts + (it.spec.pts === 5 && set.id === 's4' ? ' b.' : ' b.'));
+      const cnt = it.p.giv.filter(Boolean).length;
+      grid.append(h('article', { class: 'card' + (S.phase === 'running' ? ' tap' : '') + (it.solved && !S.res ? ' solvedc' : '') + (S.res ? (S.res.per[j].ok ? ' good' : ' bad') : '') },
+        h('header', null, h('span', { class: 'lab' }, it.spec.label || g.name), badge),
+        h('p', { class: 'rule' }, it.spec.rule), h('div', { class: 'pz' }, svg), h('p', { class: 'meta' }, 'Otkriveno brojeva: ' + cnt + (it.solved && !S.res ? ' · riješeno' : ''))));
+      if (S.phase === 'running') grid.lastChild.addEventListener('click', () => openFocus(j));
+      paint(it);
+    });
+    sec.append(grid); box.append(sec);
+  });
+}
+function paint(it) {
+  const p = it.p, n = p.n;
+  for (let i = 0; i < n * n; i++) {
+    const g = it.nt[i]; g.replaceChildren();
+    if (p.giv[i]) continue; const t = it.txt[i], v = it.ans[i]; let cls = 'du', txt = v || '';
+    if (S.phase === 'done' && v !== p.sol[i]) {
+      if (S.showSol) { cls = 'du sol'; txt = p.sol[i]; } else if (v) cls = 'du wrong';
+    }
+    t.setAttribute('class', cls); t.textContent = txt;
+    if (!v && it.notes[i] && S.phase === 'running') for (let d = 1; d <= n; d++) if (it.notes[i] & (1 << d)) {
+      const q = sv('text', { x: PD + (i % n) * CS + 9 + ((d - 1) % 3) * 13, y: PD + Math.floor(i / n) * CS + 9 + Math.floor((d - 1) / 3) * 13, class: 'nt' }, g); q.textContent = d;
+    }
+  }
+  paintHL(it);
+  if (S.phase === 'done') it.svg.querySelectorAll('.hit').forEach(r => r.remove());
+}
+function paintHL(it) {
+  const p = it.p, n = p.n; it.lay.replaceChildren();
+  const sel = S.phase === 'running' && S.sel && S.sel.k === it.k ? S.sel.i : -1;
+  let d = 0; if (S.phase === 'running' && S.items[S.fi] === it) d = S.brush > 0 ? S.brush : (sel >= 0 ? (p.giv[sel] || it.ans[sel]) : 0);
+  const box = i => sv('rect', { x: PD + (i % n) * CS, y: PD + Math.floor(i / n) * CS, width: CS, height: CS }, it.lay);
+  if (sel >= 0) for (let i = 0; i < n * n; i++) if (Math.floor(i / n) === Math.floor(sel / n) || i % n === sel % n || (p.reg && p.reg[i] === p.reg[sel])) box(i).setAttribute('class', 'peer');
+  if (d) for (let i = 0; i < n * n; i++) if ((p.giv[i] || it.ans[i]) === d) box(i).setAttribute('class', 'same');
+  if (sel >= 0) { it.hl.setAttribute('x', PD + (sel % n) * CS); it.hl.setAttribute('y', PD + Math.floor(sel / n) * CS); it.hl.setAttribute('visibility', 'visible'); } else it.hl.setAttribute('visibility', 'hidden');
+}
+
+function setupInstall() {
+  const btn = $('#inst'), help = $('#insthelp'); let dp = null;
+  if (window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
+  btn.hidden = false;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); dp = e; });
+  window.addEventListener('appinstalled', () => { btn.hidden = true; help.hidden = true; });
+  btn.addEventListener('click', async () => {
+    if (dp) { dp.prompt(); try { await dp.userChoice; } catch (e) {} dp = null; return; }
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    help.textContent = ios ? 'Na iPhoneu i iPadu: u Safariju pritisnite Dijeli, pa "Dodaj na početni zaslon".' : 'U pregledniku otvorite izbornik (⋮) i odaberite "Instaliraj aplikaciju" ili "Dodaj na početni zaslon". Gumb radi izravno kad se stranica otvori iz instalabilne (PWA) verzije na vlastitom hostingu.';
+    help.hidden = !help.hidden;
+  });
+}
+buildPad(); setupFocus(); setupInstall(); build(0);
+})();
+
+</script>
+
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});</script>
